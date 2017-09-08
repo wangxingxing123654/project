@@ -1,0 +1,284 @@
+<!DOCTYPE html><html><head><title>烟花</title><meta charset='utf-8'><link href='https://dn-maxiang.qbox.me/res-min/themes/marxico.css' rel='stylesheet'><style></style></head><body><div id='preview-contents' class='note-content'>
+                        
+                    
+
+
+
+<h1 id="烟花">烟花</h1>
+
+<pre class="prettyprint hljs-dark"><code class="hljs kotlin"><div class="hljs-line">&lt;script&gt;
+</div><div class="hljs-line">    <span class="hljs-comment">/* basic styles for black background and crosshair cursor */</span>
+</div><div class="hljs-line">    <span class="hljs-comment">// when animating on canvas, it is best to use requestAnimationFrame instead of setTimeout or setInterval</span>
+</div><div class="hljs-line">    <span class="hljs-comment">// not supported in all browsers though and sometimes needs a prefix, so we need a shim</span>
+</div><div class="hljs-line">    window.requestAnimFrame = (function() {
+</div><div class="hljs-line">        <span class="hljs-keyword">return</span> window.requestAnimationFrame ||
+</div><div class="hljs-line">            window.webkitRequestAnimationFrame ||
+</div><div class="hljs-line">            window.mozRequestAnimationFrame ||
+</div><div class="hljs-line">            function(callback) {
+</div><div class="hljs-line">                window.setTimeout(callback, <span class="hljs-number">1000</span> / <span class="hljs-number">60</span>);
+</div><div class="hljs-line">            };
+</div><div class="hljs-line">    })();
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// now we will setup our basic variables for the demo</span>
+</div><div class="hljs-line">    <span class="hljs-keyword">var</span> canvas = document.getElementById(<span class="hljs-string">'canvas'</span>),
+</div><div class="hljs-line">        ctx = canvas.getContext(<span class="hljs-string">'2d'</span>),
+</div><div class="hljs-line">        <span class="hljs-comment">// full screen dimensions</span>
+</div><div class="hljs-line">        cw = window.innerWidth,
+</div><div class="hljs-line">        ch = window.innerHeight,
+</div><div class="hljs-line">        <span class="hljs-comment">// firework collection</span>
+</div><div class="hljs-line">        fireworks = [],
+</div><div class="hljs-line">        <span class="hljs-comment">// particle collection</span>
+</div><div class="hljs-line">        particles = [],
+</div><div class="hljs-line">        <span class="hljs-comment">// starting hue</span>
+</div><div class="hljs-line">        hue = <span class="hljs-number">120</span>,
+</div><div class="hljs-line">        <span class="hljs-comment">// when launching fireworks with a click, too many get launched at once without a limiter, one launch per 5 loop ticks</span>
+</div><div class="hljs-line">        limiterTotal = <span class="hljs-number">5</span>,
+</div><div class="hljs-line">        limiterTick = <span class="hljs-number">0</span>,
+</div><div class="hljs-line">        <span class="hljs-comment">// this will time the auto launches of fireworks, one launch per 80 loop ticks</span>
+</div><div class="hljs-line">        timerTotal = <span class="hljs-number">80</span>,
+</div><div class="hljs-line">        timerTick = <span class="hljs-number">0</span>,
+</div><div class="hljs-line">        mousedown = <span class="hljs-literal">false</span>,
+</div><div class="hljs-line">        <span class="hljs-comment">// mouse x coordinate,</span>
+</div><div class="hljs-line">        mx,
+</div><div class="hljs-line">        <span class="hljs-comment">// mouse y coordinate</span>
+</div><div class="hljs-line">        my;
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// set canvas dimensions</span>
+</div><div class="hljs-line">    canvas.width = cw;
+</div><div class="hljs-line">    canvas.height = ch;
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// now we are going to setup our function placeholders for the entire demo</span>
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// get a random number within a range</span>
+</div><div class="hljs-line">    function random(min, max) {
+</div><div class="hljs-line">        <span class="hljs-keyword">return</span> Math.random() * (max - min) + min;
+</div><div class="hljs-line">    }
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// calculate the distance between two points</span>
+</div><div class="hljs-line">    function calculateDistance(p1x, p1y, p2x, p2y) {
+</div><div class="hljs-line">        <span class="hljs-keyword">var</span> xDistance = p1x - p2x,
+</div><div class="hljs-line">            yDistance = p1y - p2y;
+</div><div class="hljs-line">        <span class="hljs-keyword">return</span> Math.sqrt(Math.pow(xDistance, <span class="hljs-number">2</span>) + Math.pow(yDistance, <span class="hljs-number">2</span>));
+</div><div class="hljs-line">    }
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// create firework</span>
+</div><div class="hljs-line">    function Firework(sx, sy, tx, ty) {
+</div><div class="hljs-line">        <span class="hljs-comment">// actual coordinates</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.x = sx;
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.y = sy;
+</div><div class="hljs-line">        <span class="hljs-comment">// starting coordinates</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.sx = sx;
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.sy = sy;
+</div><div class="hljs-line">        <span class="hljs-comment">// target coordinates</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.tx = tx;
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.ty = ty;
+</div><div class="hljs-line">        <span class="hljs-comment">// distance from starting point to target</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.distanceToTarget = calculateDistance(sx, sy, tx, ty);
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.distanceTraveled = <span class="hljs-number">0</span>;
+</div><div class="hljs-line">        <span class="hljs-comment">// track the past coordinates of each firework to create a trail effect, increase the coordinate count to create more prominent trails</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.coordinates = [];
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.coordinateCount = <span class="hljs-number">3</span>;
+</div><div class="hljs-line">        <span class="hljs-comment">// populate initial coordinate collection with the current coordinates</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">while</span> (<span class="hljs-keyword">this</span>.coordinateCount--) {
+</div><div class="hljs-line">            <span class="hljs-keyword">this</span>.coordinates.push([<span class="hljs-keyword">this</span>.x, <span class="hljs-keyword">this</span>.y]);
+</div><div class="hljs-line">        }
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.angle = Math.atan2(ty - sy, tx - sx);
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.speed = <span class="hljs-number">2</span>;
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.acceleration = <span class="hljs-number">1.05</span>;
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.brightness = random(<span class="hljs-number">50</span>, <span class="hljs-number">70</span>);
+</div><div class="hljs-line">        <span class="hljs-comment">// circle target indicator radius</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.targetRadius = <span class="hljs-number">1</span>;
+</div><div class="hljs-line">    }
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// update firework</span>
+</div><div class="hljs-line">    Firework.prototype.update = function(index) {
+</div><div class="hljs-line">        <span class="hljs-comment">// remove last item in coordinates array</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.coordinates.pop();
+</div><div class="hljs-line">        <span class="hljs-comment">// add current coordinates to the start of the array</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.coordinates.unshift([<span class="hljs-keyword">this</span>.x, <span class="hljs-keyword">this</span>.y]);
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// cycle the circle target indicator radius</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">if</span> (<span class="hljs-keyword">this</span>.targetRadius &lt; <span class="hljs-number">8</span>) {
+</div><div class="hljs-line">            <span class="hljs-keyword">this</span>.targetRadius += <span class="hljs-number">0.3</span>;
+</div><div class="hljs-line">        } <span class="hljs-keyword">else</span> {
+</div><div class="hljs-line">            <span class="hljs-keyword">this</span>.targetRadius = <span class="hljs-number">1</span>;
+</div><div class="hljs-line">        }
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// speed up the firework</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.speed *= <span class="hljs-keyword">this</span>.acceleration;
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// get the current velocities based on angle and speed</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">var</span> vx = Math.cos(<span class="hljs-keyword">this</span>.angle) * <span class="hljs-keyword">this</span>.speed,
+</div><div class="hljs-line">            vy = Math.sin(<span class="hljs-keyword">this</span>.angle) * <span class="hljs-keyword">this</span>.speed;
+</div><div class="hljs-line">        <span class="hljs-comment">// how far will the firework have traveled with velocities applied?</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.distanceTraveled = calculateDistance(<span class="hljs-keyword">this</span>.sx, <span class="hljs-keyword">this</span>.sy, <span class="hljs-keyword">this</span>.x + vx, <span class="hljs-keyword">this</span>.y + vy);
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// if the distance traveled, including velocities, is greater than the initial distance to the target, then the target has been reached</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">if</span> (<span class="hljs-keyword">this</span>.distanceTraveled &gt;= <span class="hljs-keyword">this</span>.distanceToTarget) {
+</div><div class="hljs-line">            createParticles(<span class="hljs-keyword">this</span>.tx, <span class="hljs-keyword">this</span>.ty);
+</div><div class="hljs-line">            <span class="hljs-comment">// remove the firework, use the index passed into the update function to determine which to remove</span>
+</div><div class="hljs-line">            fireworks.splice(index, <span class="hljs-number">1</span>);
+</div><div class="hljs-line">        } <span class="hljs-keyword">else</span> {
+</div><div class="hljs-line">            <span class="hljs-comment">// target not reached, keep traveling</span>
+</div><div class="hljs-line">            <span class="hljs-keyword">this</span>.x += vx;
+</div><div class="hljs-line">            <span class="hljs-keyword">this</span>.y += vy;
+</div><div class="hljs-line">        }
+</div><div class="hljs-line">    }
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// draw firework</span>
+</div><div class="hljs-line">    Firework.prototype.draw = function() {
+</div><div class="hljs-line">        ctx.beginPath();
+</div><div class="hljs-line">        <span class="hljs-comment">// move to the last tracked coordinate in the set, then draw a line to the current x and y</span>
+</div><div class="hljs-line">        ctx.moveTo(<span class="hljs-keyword">this</span>.coordinates[<span class="hljs-keyword">this</span>.coordinates.length - <span class="hljs-number">1</span>][<span class="hljs-number">0</span>], <span class="hljs-keyword">this</span>.coordinates[<span class="hljs-keyword">this</span>.coordinates.length - <span class="hljs-number">1</span>][<span class="hljs-number">1</span>]);
+</div><div class="hljs-line">        ctx.lineTo(<span class="hljs-keyword">this</span>.x, <span class="hljs-keyword">this</span>.y);
+</div><div class="hljs-line">        ctx.strokeStyle = <span class="hljs-string">'hsl('</span> + hue + <span class="hljs-string">', 100%, '</span> + <span class="hljs-keyword">this</span>.brightness + <span class="hljs-string">'%)'</span>;
+</div><div class="hljs-line">        ctx.stroke();
+</div><div class="hljs-line">
+</div><div class="hljs-line">        ctx.beginPath();
+</div><div class="hljs-line">        <span class="hljs-comment">// draw the target for this firework with a pulsing circle</span>
+</div><div class="hljs-line">        ctx.arc(<span class="hljs-keyword">this</span>.tx, <span class="hljs-keyword">this</span>.ty, <span class="hljs-keyword">this</span>.targetRadius, <span class="hljs-number">0</span>, Math.PI * <span class="hljs-number">2</span>);
+</div><div class="hljs-line">        ctx.stroke();
+</div><div class="hljs-line">    }
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// create particle</span>
+</div><div class="hljs-line">    function Particle(x, y) {
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.x = x;
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.y = y;
+</div><div class="hljs-line">        <span class="hljs-comment">// track the past coordinates of each particle to create a trail effect, increase the coordinate count to create more prominent trails</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.coordinates = [];
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.coordinateCount = <span class="hljs-number">5</span>;
+</div><div class="hljs-line">        <span class="hljs-keyword">while</span> (<span class="hljs-keyword">this</span>.coordinateCount--) {
+</div><div class="hljs-line">            <span class="hljs-keyword">this</span>.coordinates.push([<span class="hljs-keyword">this</span>.x, <span class="hljs-keyword">this</span>.y]);
+</div><div class="hljs-line">        }
+</div><div class="hljs-line">        <span class="hljs-comment">// set a random angle in all possible directions, in radians</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.angle = random(<span class="hljs-number">0</span>, Math.PI * <span class="hljs-number">2</span>);
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.speed = random(<span class="hljs-number">1</span>, <span class="hljs-number">10</span>);
+</div><div class="hljs-line">        <span class="hljs-comment">// friction will slow the particle down</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.friction = <span class="hljs-number">0.95</span>;
+</div><div class="hljs-line">        <span class="hljs-comment">// gravity will be applied and pull the particle down</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.gravity = <span class="hljs-number">1</span>;
+</div><div class="hljs-line">        <span class="hljs-comment">// set the hue to a random number +-20 of the overall hue variable</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.hue = random(hue - <span class="hljs-number">20</span>, hue + <span class="hljs-number">20</span>);
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.brightness = random(<span class="hljs-number">50</span>, <span class="hljs-number">80</span>);
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.alpha = <span class="hljs-number">1</span>;
+</div><div class="hljs-line">        <span class="hljs-comment">// set how fast the particle fades out</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.decay = random(<span class="hljs-number">0.015</span>, <span class="hljs-number">0.03</span>);
+</div><div class="hljs-line">    }
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// update particle</span>
+</div><div class="hljs-line">    Particle.prototype.update = function(index) {
+</div><div class="hljs-line">        <span class="hljs-comment">// remove last item in coordinates array</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.coordinates.pop();
+</div><div class="hljs-line">        <span class="hljs-comment">// add current coordinates to the start of the array</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.coordinates.unshift([<span class="hljs-keyword">this</span>.x, <span class="hljs-keyword">this</span>.y]);
+</div><div class="hljs-line">        <span class="hljs-comment">// slow down the particle</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.speed *= <span class="hljs-keyword">this</span>.friction;
+</div><div class="hljs-line">        <span class="hljs-comment">// apply velocity</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.x += Math.cos(<span class="hljs-keyword">this</span>.angle) * <span class="hljs-keyword">this</span>.speed;
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.y += Math.sin(<span class="hljs-keyword">this</span>.angle) * <span class="hljs-keyword">this</span>.speed + <span class="hljs-keyword">this</span>.gravity;
+</div><div class="hljs-line">        <span class="hljs-comment">// fade out the particle</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">this</span>.alpha -= <span class="hljs-keyword">this</span>.decay;
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// remove the particle once the alpha is low enough, based on the passed in index</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">if</span> (<span class="hljs-keyword">this</span>.alpha &lt;= <span class="hljs-keyword">this</span>.decay) {
+</div><div class="hljs-line">            particles.splice(index, <span class="hljs-number">1</span>);
+</div><div class="hljs-line">        }
+</div><div class="hljs-line">    }
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// draw particle</span>
+</div><div class="hljs-line">    Particle.prototype.draw = function() {
+</div><div class="hljs-line">        ctx.beginPath();
+</div><div class="hljs-line">        <span class="hljs-comment">// move to the last tracked coordinates in the set, then draw a line to the current x and y</span>
+</div><div class="hljs-line">        ctx.moveTo(<span class="hljs-keyword">this</span>.coordinates[<span class="hljs-keyword">this</span>.coordinates.length - <span class="hljs-number">1</span>][<span class="hljs-number">0</span>], <span class="hljs-keyword">this</span>.coordinates[<span class="hljs-keyword">this</span>.coordinates.length - <span class="hljs-number">1</span>][<span class="hljs-number">1</span>]);
+</div><div class="hljs-line">        ctx.lineTo(<span class="hljs-keyword">this</span>.x, <span class="hljs-keyword">this</span>.y);
+</div><div class="hljs-line">        ctx.strokeStyle = <span class="hljs-string">'hsla('</span> + <span class="hljs-keyword">this</span>.hue + <span class="hljs-string">', 100%, '</span> + <span class="hljs-keyword">this</span>.brightness + <span class="hljs-string">'%, '</span> + <span class="hljs-keyword">this</span>.alpha + <span class="hljs-string">')'</span>;
+</div><div class="hljs-line">        ctx.stroke();
+</div><div class="hljs-line">    }
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// create particle group/explosion</span>
+</div><div class="hljs-line">    function createParticles(x, y) {
+</div><div class="hljs-line">        <span class="hljs-comment">// increase the particle count for a bigger explosion, beware of the canvas performance hit with the increased particles though</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">var</span> particleCount = <span class="hljs-number">30</span>;
+</div><div class="hljs-line">        <span class="hljs-keyword">while</span> (particleCount--) {
+</div><div class="hljs-line">            particles.push(new Particle(x, y));
+</div><div class="hljs-line">        }
+</div><div class="hljs-line">    }
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// main demo loop</span>
+</div><div class="hljs-line">    function loop() {
+</div><div class="hljs-line">        <span class="hljs-comment">// this function will run endlessly with requestAnimationFrame</span>
+</div><div class="hljs-line">        requestAnimFrame(loop);
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// increase the hue to get different colored fireworks over time</span>
+</div><div class="hljs-line">        hue += <span class="hljs-number">0.5</span>;
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// normally, clearRect() would be used to clear the canvas</span>
+</div><div class="hljs-line">        <span class="hljs-comment">// we want to create a trailing effect though</span>
+</div><div class="hljs-line">        <span class="hljs-comment">// setting the composite operation to destination-out will allow us to clear the canvas at a specific opacity, rather than wiping it entirely</span>
+</div><div class="hljs-line">        ctx.globalCompositeOperation = <span class="hljs-string">'destination-out'</span>;
+</div><div class="hljs-line">        <span class="hljs-comment">// decrease the alpha property to create more prominent trails</span>
+</div><div class="hljs-line">        ctx.fillStyle = <span class="hljs-string">'rgba(0, 0, 0, 0.5)'</span>;
+</div><div class="hljs-line">        ctx.fillRect(<span class="hljs-number">0</span>, <span class="hljs-number">0</span>, cw, ch);
+</div><div class="hljs-line">        <span class="hljs-comment">// change the composite operation back to our main mode</span>
+</div><div class="hljs-line">        <span class="hljs-comment">// lighter creates bright highlight points as the fireworks and particles overlap each other</span>
+</div><div class="hljs-line">        ctx.globalCompositeOperation = <span class="hljs-string">'lighter'</span>;
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// loop over each firework, draw it, update it</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">var</span> i = fireworks.length;
+</div><div class="hljs-line">        <span class="hljs-keyword">while</span> (i--) {
+</div><div class="hljs-line">            fireworks[i].draw();
+</div><div class="hljs-line">            fireworks[i].update(i);
+</div><div class="hljs-line">        }
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// loop over each particle, draw it, update it</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">var</span> i = particles.length;
+</div><div class="hljs-line">        <span class="hljs-keyword">while</span> (i--) {
+</div><div class="hljs-line">            particles[i].draw();
+</div><div class="hljs-line">            particles[i].update(i);
+</div><div class="hljs-line">        }
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// launch fireworks automatically to random coordinates, when the mouse isn't down</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">if</span> (timerTick &gt;= timerTotal) {
+</div><div class="hljs-line">            <span class="hljs-keyword">if</span> (!mousedown) {
+</div><div class="hljs-line">                <span class="hljs-comment">// start the firework at the bottom middle of the screen, then set the random target coordinates, the random y coordinates will be set within the range of the top half of the screen</span>
+</div><div class="hljs-line">                fireworks.push(new Firework(cw / <span class="hljs-number">2</span>, ch, random(<span class="hljs-number">0</span>, cw), random(<span class="hljs-number">0</span>, ch / <span class="hljs-number">2</span>)));
+</div><div class="hljs-line">                timerTick = <span class="hljs-number">0</span>;
+</div><div class="hljs-line">            }
+</div><div class="hljs-line">        } <span class="hljs-keyword">else</span> {
+</div><div class="hljs-line">            timerTick++;
+</div><div class="hljs-line">        }
+</div><div class="hljs-line">
+</div><div class="hljs-line">        <span class="hljs-comment">// limit the rate at which fireworks get launched when mouse is down</span>
+</div><div class="hljs-line">        <span class="hljs-keyword">if</span> (limiterTick &gt;= limiterTotal) {
+</div><div class="hljs-line">            <span class="hljs-keyword">if</span> (mousedown) {
+</div><div class="hljs-line">                <span class="hljs-comment">// start the firework at the bottom middle of the screen, then set the current mouse coordinates as the target</span>
+</div><div class="hljs-line">                fireworks.push(new Firework(cw / <span class="hljs-number">2</span>, ch, mx, my));
+</div><div class="hljs-line">                limiterTick = <span class="hljs-number">0</span>;
+</div><div class="hljs-line">            }
+</div><div class="hljs-line">        } <span class="hljs-keyword">else</span> {
+</div><div class="hljs-line">            limiterTick++;
+</div><div class="hljs-line">        }
+</div><div class="hljs-line">    }
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// mouse event bindings</span>
+</div><div class="hljs-line">    <span class="hljs-comment">// update the mouse coordinates on mousemove</span>
+</div><div class="hljs-line">    canvas.addEventListener(<span class="hljs-string">'mousemove'</span>, function(e) {
+</div><div class="hljs-line">        mx = e.pageX - canvas.offsetLeft;
+</div><div class="hljs-line">        my = e.pageY - canvas.offsetTop;
+</div><div class="hljs-line">    });
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// toggle mousedown state and prevent canvas from being selected</span>
+</div><div class="hljs-line">    canvas.addEventListener(<span class="hljs-string">'mousedown'</span>, function(e) {
+</div><div class="hljs-line">        e.preventDefault();
+</div><div class="hljs-line">        mousedown = <span class="hljs-literal">true</span>;
+</div><div class="hljs-line">    });
+</div><div class="hljs-line">
+</div><div class="hljs-line">    canvas.addEventListener(<span class="hljs-string">'mouseup'</span>, function(e) {
+</div><div class="hljs-line">        e.preventDefault();
+</div><div class="hljs-line">        mousedown = <span class="hljs-literal">false</span>;
+</div><div class="hljs-line">    });
+</div><div class="hljs-line">
+</div><div class="hljs-line">    <span class="hljs-comment">// once the window loads, we are ready for some fireworks!</span>
+</div><div class="hljs-line">    window.onload = loop;
+</div><div class="hljs-line">&lt;/script&gt;
+</div></code></pre></div></body></html>
